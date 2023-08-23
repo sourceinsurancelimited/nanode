@@ -203,7 +203,6 @@ async function defaultHandler(req,res){
         }
     }
     
-    console.log(JSON.stringify(page.feeds.mastodon,null,2))
     return
 }
 
