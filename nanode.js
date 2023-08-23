@@ -108,10 +108,12 @@ function findFile(reqPath,filePath,extensions,canRecurse,rootIs404){
     if(reqPath == '/'){ reqPath = '/index'; }
     if(reqPath == ''){ reqPath = '/index' }
 
+    /*
     if(reqPath == '/index' && rootIs404){
         console.log(404)
         return false
     }
+    */
 
     for (const key in extensions) {
         if(foundFile == ''){
@@ -129,7 +131,7 @@ function findFile(reqPath,filePath,extensions,canRecurse,rootIs404){
         console.log('Found: ' + foundFile)
         return foundFile
     } else {
-        if(reqPath == '/index' || canRecurse == false){
+        if(reqPath == '/index'){
             // We have failed to find the file
             console.log('404')
             return false
@@ -137,7 +139,7 @@ function findFile(reqPath,filePath,extensions,canRecurse,rootIs404){
             // Try moving up one directory
             reqPath = reqPath.split('/')
             reqPath.pop()
-            reqPath.join('/')
+            reqPath = reqPath.join('/')
             return findFile(reqPath,filePath,extensions,canRecurse)
         }
     }
@@ -145,6 +147,12 @@ function findFile(reqPath,filePath,extensions,canRecurse,rootIs404){
 
 async function defaultHandler(req,res){
     console.log('req.path: ' + req.path)
+
+    const filePattern = /\.\w+$/; // This regex matches a dot followed by one or more word characters at the end of a string.
+    if (filePattern.test(req.path)) {
+        res.status(404).send('404 - Not Found');
+        return
+    }
 
     // Find all the directories in our /content directory
     var directories = findDirectories(process.cwd() + '/content')
@@ -161,14 +169,6 @@ async function defaultHandler(req,res){
 
         // Find the file in this directory
         var contentFile = findFile(req.path,directory,['js','md','ejs'],true,false)
-
-        // If we return a false, treat this as a 404
-        /*
-        if(contentFile === false){
-            res.status(404).send('404 - Not Found');
-            return
-        }
-        */
 
         // Process the file
         if(!(contentFile === false)){
@@ -191,76 +191,20 @@ async function defaultHandler(req,res){
     if(res.finished === false || res.finished == undefined){
         if(html == ''){
             // Send output as JSON
-            res.setHeader('Content-Type', 'application/json');
-            res.send(JSON.stringify(page,null,2))
+            if(typeof page == 'object'){
+                res.setHeader('Content-Type', 'application/json');
+                res.send(JSON.stringify(page,null,2))
+            } else {
+                res.status(404).send('404 - Not Found');
+            }
         } else {
             res.header('Content-type', 'text/html')
             res.send(html)
         }
     }
     
-}
-
-async function defaultHander_OLD(req,res) {  
-    console.log('req.path: ' + req.path)
-
-    // Find our content file
-    if(req.path == '/'){
-        var contentFile = findFile(req.path,'/content',['js','md'],false,false)
-    } else {
-        var contentFile = findFile(req.path,'/content',['js','md'],true,true)
-    }
-    
-    // If there is no file, return a 404
-    if(contentFile === false){
-        res.status(404).send('404 - Not Found');
-        return
-    }
-
-    // Process the file
-    console.log('Extension: ' + path.extname(contentFile))
-    switch(path.extname(contentFile)){
-        case '.js':
-            var page = await jsHandler(req,res,contentFile)
-            break
-        case '.md':
-            var page = await mdHandler(req,res,contentFile)
-            console.log(page)
-            break
-    }
-    // Return 404 if the return from the process is false
-    if(page === false){
-        res.status(404).send('404 - Not Found');
-        return
-    }
-
-    // Pass the return through any hooks that have been registered
-    if(typeof page == 'object' && hooks.page.length > 0){
-        for (let index = 0; index < hooks.page.length; index++) {
-            const hookfunc = array[index];
-            page = await hookfunc(req,res,page)
-        }
-    }
-
-    // Check the return
-    if(typeof page == 'object'){
-        // A returned object needs to be parsed through a template
-        console.log('Going for theme')
-        const themeFile = findFile(req.path,'/theme',['ejs','html'],true,false)
-        if(themeFile === false){
-            res.setHeader('Content-Type', 'application/json');
-            res.send(JSON.stringify(page,null,2))
-        } else {
-            var html = await themeHander(req,res,themeFile,page)
-            res.header('Content-type', 'text/html')
-            res.send(html)
-        }
-    } else {
-        res.status(404).send('404 - Not Found');
-        return
-    }
-
-    return 
+    console.log(JSON.stringify(page.feeds.mastodon,null,2))
+    return
 }
 
 async function jsHandler(req,res,contentFile,page,session){
