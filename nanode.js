@@ -168,7 +168,7 @@ async function defaultHandler(req,res){
         console.log('Directory: ' + directory)
 
         // Find the file in this directory
-        var contentFile = findFile(req.path,directory,['js','md','ejs'],true,false)
+        var contentFile = findFile(req.path,directory,['js','md','ejs','html','htm'],true,false)
 
         // Process the file
         if(!(contentFile === false)){
@@ -182,6 +182,11 @@ async function defaultHandler(req,res){
                     break
                 case '.ejs':
                     var html = html + await ejsHander(req,res,contentFile,page,session,directory)
+                    break
+                case '.html':
+                case '.htm':
+                    var html = html + await htmlHander(contentFile)
+                    break
             }
         }
 
@@ -245,7 +250,6 @@ async function mdHandler(req,res,contentFile,page){
 }
 
 async function ejsHander(req,res,themeFile,page,session,directory){
-    console.log('In theme handler')
     themeFile = fs.readFileSync(themeFile,'utf8')
     var html = ejs.render(themeFile, 
         {
@@ -260,6 +264,11 @@ async function ejsHander(req,res,themeFile,page,session,directory){
         }
     )
     return html
+}
+
+async function ejsHander(themeFile){
+    htmlFile = fs.readFileSync(themeFile,'utf8')
+    return htmlFile
 }
 
 module.exports = { ready, steady, go }
