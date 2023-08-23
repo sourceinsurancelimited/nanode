@@ -181,11 +181,11 @@ async function defaultHandler(req,res){
                     await mdHandler(req,res,contentFile,page)
                     break
                 case '.ejs':
-                    var html = html + await ejsHander(req,res,contentFile,page,session,directory)
+                    var html = html + await ejsHandler(req,res,contentFile,page,session,directory)
                     break
                 case '.html':
                 case '.htm':
-                    var html = html + await htmlHander(contentFile)
+                    var html = html + await htmlHandler(contentFile)
                     break
             }
         }
@@ -249,7 +249,7 @@ async function mdHandler(req,res,contentFile,page){
     page = _.merge({},page,returnPage)
 }
 
-async function ejsHander(req,res,themeFile,page,session,directory){
+async function ejsHandler(req,res,themeFile,page,session,directory){
     themeFile = fs.readFileSync(themeFile,'utf8')
     var html = ejs.render(themeFile, 
         {
@@ -266,7 +266,7 @@ async function ejsHander(req,res,themeFile,page,session,directory){
     return html
 }
 
-async function ejsHander(themeFile){
+async function htmlHandler(themeFile){
     htmlFile = fs.readFileSync(themeFile,'utf8')
     return htmlFile
 }
