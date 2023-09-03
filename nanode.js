@@ -9,7 +9,7 @@ const cors = require('cors')
 const fs = require('fs')
 const path = require('path');
 
-const gmatter = require('gray-matter')
+const frontMatter = require('front-matter');
 const markdown = require('markdown-it')(
     {
         html: true,
@@ -161,6 +161,7 @@ async function defaultHandler(req,res){
     var page = {}
     var session = {} // TODO: Get a session from the req.
     var html = ''
+    var stop = false
 
     // Loop through the directories and process each one
     for (const directoryI in directories) {
@@ -171,21 +172,22 @@ async function defaultHandler(req,res){
         var contentFile = findFile(req.path,directory,['js','md','ejs','html','htm'],true,false)
 
         // Process the file
-        if(!(contentFile === false)){
+        if(!(contentFile === false) & !(stop === true)){
             console.log('Extension: ' + path.extname(contentFile))
             switch(path.extname(contentFile)){
                 case '.js':
-                    await jsHandler(req,res,contentFile,page,session)
+                    stop = await jsHandler(req,res,contentFile,page,session)
+                    if(stop === true) { console.log('Stop flag set')}
                     break
                 case '.md':
-                    await mdHandler(req,res,contentFile,page)
+                    mdHandler(req,res,contentFile,page)
                     break
                 case '.ejs':
                     var html = html + await ejsHandler(req,res,contentFile,page,session,directory)
                     break
                 case '.html':
                 case '.htm':
-                    var html = html + await htmlHandler(contentFile)
+                    var html = html + htmlHandler(contentFile)
                     break
             }
         }
@@ -215,58 +217,65 @@ async function jsHandler(req,res,contentFile,page,session){
     delete require.cache[require.resolve(contentFile)]
     var route = require(contentFile)
     var verb = String(req.method).toLowerCase()
+    var r = false 
     console.log('Looking for ' + verb)
+    
+    
     if(typeof route[verb] == 'function'){
-        await route[verb](req,res,page,session)
+        r = await route[verb](req,res,page,session)
     } else if(typeof route['go'] == 'function'){
-        await route['go'](req,res,page,session)
+        r = await route['go'](req,res,page,session)
     } else {
         return false
     }
 
+    /*
     if(typeof page?.content == 'string' && page.html == undefined){
         page.html = markdown.render(page.content)
     }
-    return page
+    */
+
+    return r
 }
 
-async function mdHandler(req,res,contentFile,page){
+function mdHandler(req,res,contentFile,page){
     
-    console.log('Parsing for YAML and markdown: ' + contentFile)
+    var contentFileContents = fs.readFileSync(contentFile,'utf8')
     
-    var contentFileContents = fs.readFileSync(contentFile)
-    var returnPage = gmatter(contentFileContents)
-    returnPage.html = markdown.render(returnPage.content);
-
+    const returnPage = frontMatter(contentFileContents)
+    
     if(page.data == undefined) { page.data = {} }
-    page.data = _.merge({},page.data,returnPage.data)
-    page.html = page.html + returnPage.html
+    page.data = _.merge({},page.data,returnPage.attributes)
+    
+    if(page.html == undefined) { page.html = '' }
+    page.html = page.html + markdown.render(returnPage.body)
 
-    delete returnPage.html
-    delete returnPage.data
-    delete returnPage.orig
-
-    page = _.merge({},page,returnPage)
 }
 
-async function ejsHandler(req,res,themeFile,page,session,directory){
+function ejsHandler(req,res,themeFile,page,session,directory){
     themeFile = fs.readFileSync(themeFile,'utf8')
-    var html = ejs.render(themeFile, 
-        {
-            'page': page,
-            'req': req,
-            'session': session,
-        } ,
-        {
-        root: directory,
-        // _with: false,
-        localsName: 'data'
-        }
-    )
+    try {
+        var html = ejs.render(themeFile, 
+            {
+                'page': page,
+                'req': req,
+                'session': session,
+            } ,
+            {
+            root: directory,
+            // _with: false,
+            localsName: 'data'
+            }
+        )    
+    } catch (error) {
+        console.log('EJS Error:' + error)
+        var html = '<pre>' + error + '</pre>'
+    }
+    
     return html
 }
 
-async function htmlHandler(themeFile){
+function htmlHandler(themeFile){
     htmlFile = fs.readFileSync(themeFile,'utf8')
     return htmlFile
 }
