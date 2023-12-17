@@ -101,19 +101,12 @@ function findDirectories(source) {
         .sort((a, b) => parseInt(path.basename(a)) - parseInt(path.basename(b)))
 }
 
-function findFile(reqPath,filePath,extensions,canRecurse,rootIs404){
+function findFile(reqPath,filePath,extensions,canRecurse){
     var checkFile = ''
     var foundFile = ''
 
     if(reqPath == '/'){ reqPath = '/index'; }
     if(reqPath == ''){ reqPath = '/index' }
-
-    /*
-    if(reqPath == '/index' && rootIs404){
-        console.log(404)
-        return false
-    }
-    */
 
     for (const key in extensions) {
         if(foundFile == ''){
@@ -133,7 +126,6 @@ function findFile(reqPath,filePath,extensions,canRecurse,rootIs404){
     } else {
         if(reqPath == '/index'){
             // We have failed to find the file
-            console.log('404')
             return false
         } else {
             // Try moving up one directory
@@ -150,7 +142,8 @@ async function defaultHandler(req,res){
 
     const filePattern = /\.\w+$/; // This regex matches a dot followed by one or more word characters at the end of a string.
     if (filePattern.test(req.path)) {
-        res.status(404).send('404 - Not Found');
+        console.log('Blocking request for file')
+        res.status(404).send('404 - File Not Found');
         return
     }
 
@@ -165,30 +158,32 @@ async function defaultHandler(req,res){
 
     // Loop through the directories and process each one
     for (const directoryI in directories) {
-        const directory = directories[directoryI]
-        console.log('Directory: ' + directory)
-
-        // Find the file in this directory
-        var contentFile = findFile(req.path,directory,['js','md','ejs','html','htm'],true,false)
-
-        // Process the file
-        if(!(contentFile === false) & !(stop === true)){
-            console.log('Extension: ' + path.extname(contentFile))
-            switch(path.extname(contentFile)){
-                case '.js':
-                    stop = await jsHandler(req,res,contentFile,page,session)
-                    if(stop === true) { console.log('Stop flag set')}
-                    break
-                case '.md':
-                    mdHandler(req,res,contentFile,page)
-                    break
-                case '.ejs':
-                    var html = html + await ejsHandler(req,res,contentFile,page,session,directory)
-                    break
-                case '.html':
-                case '.htm':
-                    var html = html + htmlHandler(contentFile)
-                    break
+        if(!(stop === true)){
+            const directory = directories[directoryI]
+            console.log('Directory: ' + directory)
+    
+            // Find the file in this directory
+            var contentFile = findFile(req.path,directory,['js','md','ejs','html','htm'],true,false)
+    
+            // Process the file
+            if(!(contentFile === false)){
+                console.log('Extension: ' + path.extname(contentFile))
+                switch(path.extname(contentFile)){
+                    case '.js':
+                        stop = await jsHandler(req,res,contentFile,page,session)
+                        if(stop === true) { console.log('Stop flag set')}
+                        break
+                    case '.md':
+                        mdHandler(req,res,contentFile,page)
+                        break
+                    case '.ejs':
+                        var html = html + await ejsHandler(req,res,contentFile,page,session,directory)
+                        break
+                    case '.html':
+                    case '.htm':
+                        var html = html + htmlHandler(contentFile)
+                        break
+                }
             }
         }
 
@@ -199,15 +194,20 @@ async function defaultHandler(req,res){
         if(html == ''){
             // Send output as JSON
             if(typeof page == 'object'){
+                console.log('Sending JSON')
                 res.setHeader('Content-Type', 'application/json');
                 res.send(JSON.stringify(page,null,2))
             } else {
-                res.status(404).send('404 - Not Found');
+                console('Could not find ' + req.path)
+                res.status(404).send('404 - Page Not Found');
             }
         } else {
+            console.log('Sending HTML')
             res.header('Content-type', 'text/html')
             res.send(html)
         }
+    } else {
+        console.log('Finished:' + res.finished)
     }
     
     return
